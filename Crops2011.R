@@ -1,6 +1,12 @@
+
+#import directly from dropbox
+URL <- paste0("https://dl.dropboxusercontent.com/u/11450575/HayAndCropFields%28004-0213%29.csv")
+# Download da
+QC<- repmis::source_data(URL,sep = ",",header = TRUE)
+
 #How to import manually (because R says the file is too big)
 #To find the name and path of a file, go on Finder, on the document you want to import, right click -> Get Info -> Where (Path)
-QC=read.csv("/Users/Ocean/Documents/UdeM Doctorat/NANI:NAPI/2011/Crops/HayAndCropFields(004-0213).csv") 
+#QC=read.csv("/Users/Ocean/Documents/UdeM Doctorat/NANI:NAPI/2011/Crops/HayAndCropFields(004-0213).csv") 
 #The path is only until the folder of the document. You need to enter its name manually. (also in Get Info -> Name and Extension)
 
 #Je crée un truc nouveau et je l'appelle PR.QC. De QC, je veux extraire toutes les rangées qui ont "Quebec" dans la colonne GEO
@@ -9,6 +15,7 @@ PR.QC=QC[grep("Quebec",QC$GEO),]
 #Dans PR.QC, les colonnes CROPS et UOM sont collées ensemble avec "paste" 
 #Quand on transforme le fichier de long en wide, on veut pas trop trop de colonnes. CROPS et UOM sont des variables qui vont être mises en colonnes, donc on les regroupe pour minimiser les colonnes qui vont être créées
 PR.QC$CROPSUOM=paste(PR.QC$CROPS,PR.QC$UOM) 
+
 #Une colonne d'intérêt a un nombre X de rangées. Par défaut, les valeurs dans ces rangées sont vues comme catégories, ou niveaux. 
 #Ce ne sont pas les valeurs de chaque rangée qui sont understood par R. Pour changer ça, il faut utiliser as.character. 
 #as.character transforme les valeurs des rangées in actual values, so R understands them as characters and not levels. 
@@ -20,6 +27,46 @@ PR.QC$Value=as.numeric(as.character(PR.QC$Value))
 #Chaque province, MRC, et municipalité aura une rangée. Je nomme ce nouveau fichier Liste. 
 Liste=reshape(PR.QC,idvar="GEO",v.names="Value",timevar=c("CROPSUOM"),direction="wide",drop=c("CROPS","UOM","Ref_Date","Vector","Coordinate"))
 PR.QC$Value #this is just to see what the Value column looks like in PR.QC
+
+# create a list or mrcs with the code
+mrcs=Liste[grep("CD",Liste$GEO),]
+mrcs=addCode(mrcs)
+mrcs$codeMRC=substr(mrcs$code,5,8)
+mrcs=column.swap(mrcs,"codeMRC")
+temp=do.call(rbind,strsplit(as.character(mrcs$GEO),","))
+mrcs$mrc=temp[,1]
+
+regions=Liste[grep("CAR",Liste$GEO),]
+
+
+municips=Liste[grep("CCS",Liste$GEO),]
+municips=addCode(municips)
+codeMRC=substr(municips$code,6,9)
+municips$mrc=NA
+
+for(i in unique(codeMRC)){
+  index=which(codeMRC==i)
+  municips[index,"mrc"]=mrcs[mrcs$codeMRC==i,"mrc"]
+}
+
+municips=column.swap(municips,"mrc")
+
+#Maintenant je veux ramener les colonnes de AdministrativeRegion et Code en avant. 
+column.swap<-function(data,names)
+{
+  dataswap=cbind(data[,names,drop=F],data[,!colnames(data)%in%names])
+  return(dataswap)
+}
+
+data=mrcs
+
+#extract the code between square brackets
+addCode= function(data){
+code=gsub(".*\\[(.*)\\].*", "\\1",data$GEO)
+data$code=code
+data=column.swap(data,"code")
+return(data)
+}
 
 
 #JO veut les rangées des MRCs aussi. On ne peut pas juste extraire les rangées qui ont le CCS (C'est l'abbréviation de Census Consolidation Subdivision. Ça correspond aux trois derniers chiffres du code à 9 chiffres du recensement. 
@@ -64,12 +111,7 @@ for(i in 1:nrow(CensusDiv))
   MuniLau[Try,"MRC"]=as.character(CensusDiv$Name[i])
 }
 
-#Maintenant je veux ramener les colonnes de AdministrativeRegion et Code en avant. 
-column.swap<-function(data,names)
-{
- dataswap=cbind(data[,names],data[,!colnames(data)%in%names])
- return(dataswap)
-}
+
 Test4=column.swap(MuniLau,c("MRC","AdministrativeRegion","Code"))
 Muni=column.swap(Muni,c("MRC","AdministrativeRegion","Code"))
 
