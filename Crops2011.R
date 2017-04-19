@@ -1,7 +1,37 @@
+# R code written by Stephanie shousha & Nicolas F. St-Gelais
+# 2017-04-19
+# Updated MM/DD/YYYY
+# Code verified by : 
+# -----------------------------------------------------------------------
+# Crops2011.R
+# .....
+# 
+# -----------------------------------------------------------------------
 
+#functions
+#Maintenant je veux ramener les colonnes de AdministrativeRegion et Code en avant. 
+column.swap<-function(data,names)
+{
+  dataswap=cbind(data[,names,drop=F],data[,!colnames(data)%in%names])
+  return(dataswap)
+}
+
+#extract the code between square brackets
+addCode= function(data)
+  {
+code=gsub(".*\\[(.*)\\].*", "\\1",data$GEO)
+data$code=code
+data=column.swap(data,"code")
+return(data)
+}
+
+#installing and loading the repmis package
+#install.packages("repmis")
+library("repmis")
 #import directly from dropbox
 URL <- paste0("https://dl.dropboxusercontent.com/u/11450575/HayAndCropFields%28004-0213%29.csv")
-# Download da
+
+# Download data from dropbox
 QC<- repmis::source_data(URL,sep = ",",header = TRUE)
 
 #How to import manually (because R says the file is too big)
@@ -26,7 +56,7 @@ PR.QC$Value=as.numeric(as.character(PR.QC$Value))
 #Maintenant que j'ai sorti les rangées qui ne sont que du Québec (ce qui est intéressant pour moi), je vais switcher le format de mon fichier de long à wide. 
 #Chaque province, MRC, et municipalité aura une rangée. Je nomme ce nouveau fichier Liste. 
 Liste=reshape(PR.QC,idvar="GEO",v.names="Value",timevar=c("CROPSUOM"),direction="wide",drop=c("CROPS","UOM","Ref_Date","Vector","Coordinate"))
-PR.QC$Value #this is just to see what the Value column looks like in PR.QC
+#PR.QC$Value #this is just to see what the Value column looks like in PR.QC
 
 # create a list or mrcs with the code
 mrcs=Liste[grep("CD",Liste$GEO),]
@@ -38,35 +68,22 @@ mrcs$mrc=temp[,1]
 
 regions=Liste[grep("CAR",Liste$GEO),]
 
-
+#extract municipalities, extract code and add mrc column
 municips=Liste[grep("CCS",Liste$GEO),]
 municips=addCode(municips)
 codeMRC=substr(municips$code,6,9)
 municips$mrc=NA
 
+#associate an mrc code to each municipality
 for(i in unique(codeMRC)){
   index=which(codeMRC==i)
   municips[index,"mrc"]=mrcs[mrcs$codeMRC==i,"mrc"]
 }
 
-municips=column.swap(municips,"mrc")
+temp=do.call(rbind,strsplit(as.character(municips$GEO),","))
+municips$municipalite=temp[,1]
+municips=column.swap(municips,c("mrc","municipalite"))
 
-#Maintenant je veux ramener les colonnes de AdministrativeRegion et Code en avant. 
-column.swap<-function(data,names)
-{
-  dataswap=cbind(data[,names,drop=F],data[,!colnames(data)%in%names])
-  return(dataswap)
-}
-
-data=mrcs
-
-#extract the code between square brackets
-addCode= function(data){
-code=gsub(".*\\[(.*)\\].*", "\\1",data$GEO)
-data$code=code
-data=column.swap(data,"code")
-return(data)
-}
 
 
 #JO veut les rangées des MRCs aussi. On ne peut pas juste extraire les rangées qui ont le CCS (C'est l'abbréviation de Census Consolidation Subdivision. Ça correspond aux trois derniers chiffres du code à 9 chiffres du recensement. 
@@ -74,47 +91,48 @@ return(data)
 #J'ai trouvé les codes sur le siteweb de StatsCan et je les ai sauvegardés dans le dossier UdeM Doc -> NANI-NAPI. )
 
 #Ce qui m'intéresse ce sont les régions de la Lanaudière (2407), Outaouais (2408), Laurentides (2409)
-Muni1=Liste[grep("2407",Liste$GEO),]
-Muni2=Liste[grep("2408",Liste$GEO),]
-Muni3=Liste[grep("2409",Liste$GEO),]
-Muni = rbind(Muni1,Muni2,Muni3)
+#Muni1=Liste[grep("2407",Liste$GEO),]
+#Muni2=Liste[grep("2408",Liste$GEO),]
+#Muni3=Liste[grep("2409",Liste$GEO),]
+#Muni = rbind(Muni1,Muni2,Muni3)
 
 
 #Je veux séparer les codes des noms des municipalités. 
 #Je vais nommer ce fichier Test.
 #Split the column GEO (from Muni) at the comma. Use as.character to make sure the GEO column is understood correctly by R. 
 #And then bind them by rows (WHY DO WE DO THIS)
-Test=do.call(rbind,strsplit(as.character(Muni$GEO),","))
+#Test=do.call(rbind,strsplit(as.character(Muni$GEO),","))
 #For all the rows, the first column of Test is to be called AdministrativeRegion, in Muni
-Muni$AdministrativeRegion=Test[,1]
+#Muni$AdministrativeRegion=Test[,1]
 #Using gsub replaces Quebec by a space. I don't care about the name Quebec, all the AdministrativeRegions are in QC, we know this. 
-Test[,2]=gsub("Quebec ","",Test[,2])
+#Test[,2]=gsub("Quebec ","",Test[,2])
 #In Test, the second column for all the rows is called Code. 
-Muni$Code=Test[,2]
-Muni=column.swap(Muni,c("AdministrativeRegion","Code"))
+#Muni$Code=Test[,2]
+#Muni=column.swap(Muni,c("AdministrativeRegion","Code"))
 
 
 #Ici, les MRC des Laurentides ont les codes Census Division 72 à 79. Leurs noms sont écrits ligne 56 (2 lignes plus bas)
-Number=c(52,60,61,62,63,64,72,73,74,75,76,77,78,79,80,81,82,83,84)
-Name=c("D'Autray","L'Assomption","Joliette","Matawinie","Montcalm","Les Moulins","Deux-Montagnes","Therese de Blainville","Mirabel","Riviere du Nord","Argenteuil","Pays d'en Haut","Laurentides","Antoine-Labelle","Papineau","Gatineau","Les Collines-de-l'Outaouais","La Vallée-de-la-Gatineau","Pontiac")
+#Number=c(52,60,61,62,63,64,72,73,74,75,76,77,78,79,80,81,82,83,84)
+#Name=c("D'Autray","L'Assomption","Joliette","Matawinie","Montcalm","Les Moulins","Deux-Montagnes","Therese de Blainville","Mirabel","Riviere du Nord","Argenteuil","Pays d'en Haut","Laurentides","Antoine-Labelle","Papineau","Gatineau","Les Collines-de-l'Outaouais","La Vallée-de-la-Gatineau","Pontiac")
 #Je crée un dossier qui s'appelle CensusDiv: code du CD de la MRC vs son nom
-CensusDiv=data.frame(Number,Name)
+#CensusDiv=data.frame(Number,Name)
 
 #Ici c'est un loop que pour chaque rangée dans CensusDiv, 
-for(i in 1:nrow(CensusDiv))
-  {
+#for(i in 1:nrow(CensusDiv))
+ # {
   #je vais coller ensemble le code CCS2409 et le CensusDiv Number (de 72 à 79) with NO separation. 
-  CodeTemp=paste("CCS2409",CensusDiv$Number[i],sep="")
+  #CodeTemp=paste("CCS2409",CensusDiv$Number[i],sep="")
   
   #J'extrais quelque chose, ajoute colonne MRC
-  Try=grep(CodeTemp,MuniLau[,"Code"])
-  MuniLau[Try,"MRC"]=as.character(CensusDiv$Name[i])
-}
+  #Try=grep(CodeTemp,MuniLau[,"Code"])
+  #MuniLau[Try,"MRC"]=as.character(CensusDiv$Name[i])
+#}
 
 
-Test4=column.swap(MuniLau,c("MRC","AdministrativeRegion","Code"))
-Muni=column.swap(Muni,c("MRC","AdministrativeRegion","Code"))
+#Test4=column.swap(MuniLau,c("MRC","AdministrativeRegion","Code"))
+#Muni=column.swap(Muni,c("MRC","AdministrativeRegion","Code"))
 
 #Je veux exporter MuniLau en excel pour l'envoyer à JO
-library(xlsx)
-write.xlsx(MuniLau,"/Users/Ocean/Documents/UdeM Doctorat/NANI:NAPI/2011/Crops/MuniLau.xlsx")
+#library(xlsx)
+#write.xlsx(MuniLau,"/Users/Ocean/Documents/UdeM Doctorat/NANI:NAPI/2011/Crops/MuniLau.xlsx")
+write.csv(municips,"muni.csv",)
