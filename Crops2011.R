@@ -9,6 +9,7 @@
 # -----------------------------------------------------------------------
 
 #functions
+#functions1111
 #Maintenant je veux ramener les colonnes de AdministrativeRegion et Code en avant. 
 column.swap<-function(data,names)
 {
