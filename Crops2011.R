@@ -63,11 +63,11 @@ Liste=reshape(PR.QC,idvar="GEO",v.names="Value",timevar=c("CROPSUOM"),direction=
 mrcs=Liste[grep("CD",Liste$GEO),]
 mrcs=addCode(mrcs)
 mrcs$codeMRC=substr(mrcs$code,5,8)
-mrcs=column.swap(mrcs,"codeMRC")
 temp=do.call(rbind,strsplit(as.character(mrcs$GEO),","))
 mrcs$mrc=temp[,1]
+mrcs=column.swap(mrcs,c("codeMRC","mrc"))
 
-regions=Liste[grep("CAR",Liste$GEO),]
+#regions=Liste[grep("CAR",Liste$GEO),]
 
 #extract municipalities, extract code and add mrc column
 municips=Liste[grep("CCS",Liste$GEO),]
