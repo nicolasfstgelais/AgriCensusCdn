@@ -40,8 +40,16 @@ QC<- repmis::source_data(URL,sep = ",",header = TRUE)
 #QC=read.csv("/Users/Ocean/Documents/UdeM Doctorat/NANI:NAPI/2011/Crops/HayAndCropFields(004-0213).csv") 
 #The path is only until the folder of the document. You need to enter its name manually. (also in Get Info -> Name and Extension)
 
-#Je crée un truc nouveau et je l'appelle PR.QC. De QC, je veux extraire toutes les rangées qui ont "Quebec" dans la colonne GEO
-PR.QC=QC[grep("Quebec",QC$GEO),]
+reduce<-function(colToMerge=c("CROPS","UOM")){
+  #Je crée un truc nouveau et je l'appelle PR.QC. De QC, je veux extraire toutes les rangées qui ont "Quebec" dans la colonne GEO
+  PR.QC=QC[grep("Quebec",QC$GEO),]
+  #Dans PR.QC, les colonnes CROPS et UOM sont collées ensemble avec "paste" 
+  #Quand on transforme le fichier de long en wide, on veut pas trop trop de colonnes. CROPS et UOM sont des variables qui vont être mises en colonnes, donc on les regroupe pour minimiser les colonnes qui vont être créées
+  PR.QC$CROPSUOM=apply(PR.QC[,colToMerge],1,paste,collapse=",")
+}
+
+
+
 
 #Dans PR.QC, les colonnes CROPS et UOM sont collées ensemble avec "paste" 
 #Quand on transforme le fichier de long en wide, on veut pas trop trop de colonnes. CROPS et UOM sont des variables qui vont être mises en colonnes, donc on les regroupe pour minimiser les colonnes qui vont être créées
