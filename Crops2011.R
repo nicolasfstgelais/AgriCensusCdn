@@ -40,40 +40,41 @@ QC<- repmis::source_data(URL,sep = ",",header = TRUE)
 #QC=read.csv("/Users/Ocean/Documents/UdeM Doctorat/NANI:NAPI/2011/Crops/HayAndCropFields(004-0213).csv") 
 #The path is only until the folder of the document. You need to enter its name manually. (also in Get Info -> Name and Extension)
 
-reduce<-function(colToMerge=c("CROPS","UOM")){
+reduce<-function(colToMerge=c("CROPS","UOM"),value="value"){
   #Je crée un truc nouveau et je l'appelle PR.QC. De QC, je veux extraire toutes les rangées qui ont "Quebec" dans la colonne GEO
   PR.QC=QC[grep("Quebec",QC$GEO),]
   #Dans PR.QC, les colonnes CROPS et UOM sont collées ensemble avec "paste" 
   #Quand on transforme le fichier de long en wide, on veut pas trop trop de colonnes. CROPS et UOM sont des variables qui vont être mises en colonnes, donc on les regroupe pour minimiser les colonnes qui vont être créées
   PR.QC$CROPSUOM=apply(PR.QC[,colToMerge],1,paste,collapse=",")
+  
+  #Une colonne d'intérêt a un nombre X de rangées. Par défaut, les valeurs dans ces rangées sont vues comme catégories, ou niveaux. 
+  #Ce ne sont pas les valeurs de chaque rangée qui sont understood par R. Pour changer ça, il faut utiliser as.character. 
+  #as.character transforme les valeurs des rangées in actual values, so R understands them as characters and not levels. 
+  #Après, pcq on veut que ce soit des nombres (chiffres), on utilise as.numeric. 
+  PR.QC$Value=as.numeric(as.character(PR.QC$Value)) 
+  
+  #Format long à wide:
+  #Maintenant que j'ai sorti les rangées qui ne sont que du Québec (ce qui est intéressant pour moi), je vais switcher le format de mon fichier de long à wide. 
+  #Chaque province, MRC, et municipalité aura une rangée. Je nomme ce nouveau fichier Liste. 
+  # 
+  drop=colnames(PR.QC)[!colnames(PR.QC)%in%c("GEO",value,"CROPSUOM")]
+  Liste=reshape(PR.QC,idvar="GEO",v.names=value,timevar=c("CROPSUOM"),direction="wide",drop=drop)
+  #PR.QC$Value #this is just to see what the Value column looks like in PR.QC 
+  
+  # create a list or mrcs with the code
+  mrcs=Liste[grep("CD",Liste$GEO),]
+  mrcs=addCode(mrcs)
+  mrcs$codeMRC=substr(mrcs$code,5,8)
+  temp=do.call(rbind,strsplit(as.character(mrcs$GEO),","))
+  mrcs$mrc=temp[,1]
+  mrcs=column.swap(mrcs,c("codeMRC","mrc"))
+  
 }
 
 
 
 
-#Dans PR.QC, les colonnes CROPS et UOM sont collées ensemble avec "paste" 
-#Quand on transforme le fichier de long en wide, on veut pas trop trop de colonnes. CROPS et UOM sont des variables qui vont être mises en colonnes, donc on les regroupe pour minimiser les colonnes qui vont être créées
-PR.QC$CROPSUOM=paste(PR.QC$CROPS,PR.QC$UOM) 
 
-#Une colonne d'intérêt a un nombre X de rangées. Par défaut, les valeurs dans ces rangées sont vues comme catégories, ou niveaux. 
-#Ce ne sont pas les valeurs de chaque rangée qui sont understood par R. Pour changer ça, il faut utiliser as.character. 
-#as.character transforme les valeurs des rangées in actual values, so R understands them as characters and not levels. 
-#Après, pcq on veut que ce soit des nombres (chiffres), on utilise as.numeric. 
-PR.QC$Value=as.numeric(as.character(PR.QC$Value)) 
-
-#Format long à wide:
-#Maintenant que j'ai sorti les rangées qui ne sont que du Québec (ce qui est intéressant pour moi), je vais switcher le format de mon fichier de long à wide. 
-#Chaque province, MRC, et municipalité aura une rangée. Je nomme ce nouveau fichier Liste. 
-Liste=reshape(PR.QC,idvar="GEO",v.names="Value",timevar=c("CROPSUOM"),direction="wide",drop=c("CROPS","UOM","Ref_Date","Vector","Coordinate"))
-#PR.QC$Value #this is just to see what the Value column looks like in PR.QC
-
-# create a list or mrcs with the code
-mrcs=Liste[grep("CD",Liste$GEO),]
-mrcs=addCode(mrcs)
-mrcs$codeMRC=substr(mrcs$code,5,8)
-temp=do.call(rbind,strsplit(as.character(mrcs$GEO),","))
-mrcs$mrc=temp[,1]
-mrcs=column.swap(mrcs,c("codeMRC","mrc"))
 
 #regions=Liste[grep("CAR",Liste$GEO),]
 
