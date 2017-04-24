@@ -26,39 +26,54 @@ data=column.swap(data,"code")
 return(data)
 }
 
+# function to convert levels to numeric or characters
+LtoN <- function(x) as.numeric(as.character(x))
+LtoC <- function(x) as.character(x)
+
+
 #installing and loading the repmis package
 #install.packages("repmis")
 library("repmis")
-#import directly from dropbox
-URL <- paste0("https://dl.dropboxusercontent.com/u/11450575/HayAndCropFields%28004-0213%29.csv")
 
-# Download data from dropbox
-QC<- repmis::source_data(URL,sep = ",",header = TRUE)
+#read input file
+input=read.csv("input.csv")
+
 
 #How to import manually (because R says the file is too big)
 #To find the name and path of a file, go on Finder, on the document you want to import, right click -> Get Info -> Where (Path)
 #QC=read.csv("/Users/Ocean/Documents/UdeM Doctorat/NANI:NAPI/2011/Crops/HayAndCropFields(004-0213).csv") 
 #The path is only until the folder of the document. You need to enter its name manually. (also in Get Info -> Name and Extension)
+i=1
+for(i in 1:nrow(input))
+{
+  #import directly from dropbox
+  URL <- LtoC(input[i,"path"])
+  # Download data from dropbox
+  QC<- repmis::source_data(URL,sep = ",",header = TRUE)
+  
+  
+colToMerge=do.call(rbind,strsplit(LtoC(input[i,"colToMerge"]),";"))
+value=LtoC(input[i,"value"])
 
-reduce<-function(colToMerge=c("CROPS","UOM"),value="value"){
+reduce<-function(colToMerge=c("CROPS","UOM"),value="Value"){
   #Je crée un truc nouveau et je l'appelle PR.QC. De QC, je veux extraire toutes les rangées qui ont "Quebec" dans la colonne GEO
   PR.QC=QC[grep("Quebec",QC$GEO),]
   #Dans PR.QC, les colonnes CROPS et UOM sont collées ensemble avec "paste" 
   #Quand on transforme le fichier de long en wide, on veut pas trop trop de colonnes. CROPS et UOM sont des variables qui vont être mises en colonnes, donc on les regroupe pour minimiser les colonnes qui vont être créées
-  PR.QC$CROPSUOM=apply(PR.QC[,colToMerge],1,paste,collapse=",")
+  PR.QC$timevar=apply(PR.QC[,colToMerge],1,paste,collapse=",")
   
   #Une colonne d'intérêt a un nombre X de rangées. Par défaut, les valeurs dans ces rangées sont vues comme catégories, ou niveaux. 
   #Ce ne sont pas les valeurs de chaque rangée qui sont understood par R. Pour changer ça, il faut utiliser as.character. 
   #as.character transforme les valeurs des rangées in actual values, so R understands them as characters and not levels. 
   #Après, pcq on veut que ce soit des nombres (chiffres), on utilise as.numeric. 
-  PR.QC$Value=as.numeric(as.character(PR.QC$Value)) 
+  #PR.QC$Value=as.numeric(as.character(PR.QC$Value)) 
   
   #Format long à wide:
   #Maintenant que j'ai sorti les rangées qui ne sont que du Québec (ce qui est intéressant pour moi), je vais switcher le format de mon fichier de long à wide. 
   #Chaque province, MRC, et municipalité aura une rangée. Je nomme ce nouveau fichier Liste. 
   # 
-  drop=colnames(PR.QC)[!colnames(PR.QC)%in%c("GEO",value,"CROPSUOM")]
-  Liste=reshape(PR.QC,idvar="GEO",v.names=value,timevar=c("CROPSUOM"),direction="wide",drop=drop)
+  drop=colnames(PR.QC)[!colnames(PR.QC)%in%c("GEO",value,"timevar")]
+  Liste=reshape(PR.QC,idvar="GEO",v.names=value,timevar="timevar",direction="wide",drop=drop)
   #PR.QC$Value #this is just to see what the Value column looks like in PR.QC 
   
   # create a list or mrcs with the code
@@ -69,30 +84,34 @@ reduce<-function(colToMerge=c("CROPS","UOM"),value="value"){
   mrcs$mrc=temp[,1]
   mrcs=column.swap(mrcs,c("codeMRC","mrc"))
   
+  #regions=Liste[grep("CAR",Liste$GEO),]
+  
+  #extract municipalities, extract code and add mrc column
+  municips=Liste[grep("CCS",Liste$GEO),]
+  municips=addCode(municips)
+  codeMRC=substr(municips$code,6,9)
+  municips$mrc=NA
+  
+  #associate an mrc code to each municipality
+  for(i in unique(codeMRC)){
+    index=which(codeMRC==i)
+    municips[index,"mrc"]=mrcs[mrcs$codeMRC==i,"mrc"]
+  }
+  
+  temp=do.call(rbind,strsplit(as.character(municips$GEO),","))
+  municips$municipalite=temp[,1]
+  municips=column.swap(municips,c("mrc","municipalite"))
 }
-
-
-
-
-
-
-#regions=Liste[grep("CAR",Liste$GEO),]
-
-#extract municipalities, extract code and add mrc column
-municips=Liste[grep("CCS",Liste$GEO),]
-municips=addCode(municips)
-codeMRC=substr(municips$code,6,9)
-municips$mrc=NA
-
-#associate an mrc code to each municipality
-for(i in unique(codeMRC)){
-  index=which(codeMRC==i)
-  municips[index,"mrc"]=mrcs[mrcs$codeMRC==i,"mrc"]
+write.csv(municips,paste(LtoC(input[i,"database"]),"csv",sep="."))
 }
+  
 
-temp=do.call(rbind,strsplit(as.character(municips$GEO),","))
-municips$municipalite=temp[,1]
-municips=column.swap(municips,c("mrc","municipalite"))
+
+
+
+
+
+
 
 
 
